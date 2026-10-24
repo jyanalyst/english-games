@@ -102,7 +102,7 @@ function bumpStreak(){
   s.last=t; LS.set(K.streak,s); return s;
 }
 function daily(){ var d=LS.get(K.daily,{date:null,rounds:0}); if(d.date!==dayStr()) d={date:dayStr(),rounds:0}; return d; }
-function capReached(){ return daily().rounds >= PER_SESSION*CAP_SESSIONS; }
+function capReached(){ return false; }   // daily limit removed (Jeremy, 24 Oct 2026)
 function roundDone(){ var d=daily(); d.rounds++; LS.set(K.daily,d); bumpStreak(); return d; }
 
 /* ---------- picking a Practice round (exposed for the seeded sweep test) ---------- */
@@ -619,7 +619,7 @@ function afterItems(){
 }
 function medalFor(n){ return n>=5?"Gold":n>=4?"Silver":n>=3?"Bronze":null; }
 function summary(){
-  var d=roundDone(); var cap = d.rounds >= PER_SESSION*CAP_SESSIONS;
+  var d=roundDone(); var cap = false;
   setMain("summary"); var c=el("div","card center");
   var n = S.mode==="lesson"? S.lessonScore : S.score, total = S.queue.length;
   var medal=null;
@@ -661,7 +661,7 @@ function parentPage(){
   var bx=LS.get(K.box,{}), learning=Object.keys(bx).filter(function(k){ return bx[k].box<2; });
   c.appendChild(el("p",null,"Items still learning: "+learning.length+(learning.length?" ("+learning.slice(0,12).map(function(k){ return k.split("|")[1]; }).join(", ")+(learning.length>12?" ...":"")+")":"")));
   var s=LS.get(K.streak,{n:0}); var mins=LS.get(K.mins,{}), m7=0; Object.keys(mins).forEach(function(d){ if(daysBetween(d,dayStr())<7) m7+=mins[d]; });
-  c.appendChild(el("p",null,"Streak: "+(s.n||0)+" day(s). Minutes played (7 days): "+Math.round(m7)+". Rounds today: "+daily().rounds+" (cap "+PER_SESSION*CAP_SESSIONS+")."));
+  c.appendChild(el("p",null,"Streak: "+(s.n||0)+" day(s). Minutes played (7 days): "+Math.round(m7)+". Rounds today: "+daily().rounds+"."));
   var medals=LS.get(K.medal,{}); c.appendChild(el("p",null,"Medals: "+(Object.keys(medals).map(function(k){ return k+" "+medals[k]; }).join(", ")||"none yet")));
   // paper-step answers
   var GS=window.GAMES_META||[]; if(GAME && GAME.paper){ c.appendChild(el("h3",null,"Paper step answers ("+GAME.title+")")); var pu=el("ul"); GAME.paper.answers.forEach(function(a){ pu.appendChild(el("li",null,a)); }); c.appendChild(pu); }
