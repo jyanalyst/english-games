@@ -141,7 +141,7 @@ var S = { mode:"lesson", queue:[], idx:0, score:0, firstTries:[], missed:[], rec
 var main;
 function setMain(cls){ main.innerHTML=""; main.className="main "+(cls||""); window.scrollTo(0,0); }
 function feedbackBox(){ var f=el("div","fb"); f.id="fb"; f.setAttribute("aria-live","polite"); return f; }
-function showFb(kind, text, voiceText){ var f=$("fb"); if(!f) return; f.className="fb "+kind; f.textContent=text; say(voiceText||text); }
+function showFb(kind, text, voice){ var f=$("fb"); if(!f) return; f.className="fb "+kind; f.textContent=text; if(Array.isArray(voice)) say.apply(null, voice); else say(voice||text); }   // voice: reusable spoken pieces
 function progress(){ var p=el("div","progress"); for(var i=0;i<S.queue.length;i++){ var d=el("span","dot"+(i<S.idx?" done":"")+(i===S.idx?" now":"")); p.appendChild(d); } return p; }
 function header(){ var l=$("modeLesson"), p=$("modePractice"); if(l) l.classList.toggle("on", S.mode==="lesson"); if(p) p.classList.toggle("on", S.mode!=="lesson"); }
 
@@ -162,8 +162,8 @@ function Attempt(item, onDone){
 }
 Attempt.prototype.wrong=function(nudge, hint){
   this.misses++;
-  if(this.misses===1) showFb("no","Not yet. "+(nudge||this.item.nudge));
-  else showFb("hint","Hint: "+(hint||this.item.hint));
+  if(this.misses===1){ var n=nudge||this.item.nudge; showFb("no","Not yet. "+n, ["Not yet.", n]); }
+  else { var h=hint||this.item.hint; showFb("hint","Hint: "+h, ["Hint:", h]); }
 };
 Attempt.prototype.right=function(extra){
   if(this.finished) return; this.finished=true;
@@ -171,7 +171,7 @@ Attempt.prototype.right=function(extra){
   var fixed=logAnswer(it, first, Math.min(this.misses,2));
   var gain = first? 10 : 5; if(fixed) gain+=5; addXP(gain);
   showFb("yes", (first?"Yes! ":"You got it! ")+(it.why||"")+(extra?" "+extra:"")+"  (+"+gain+" XP"+(fixed?", you fixed a past mistake!":"")+")",
-    (first?"Yes! ":"You got it! ")+(it.why||"")+(extra?" "+extra:""));
+    [first?"Yes!":"You got it!", it.why, extra]);
   if(this.onDone) this.onDone(first);
 };
 
@@ -290,7 +290,7 @@ KINDS.mcq = function(it, area, att){
     }); b.dataset.i=i; opts.appendChild(b);
   });
   area.appendChild(opts);
-  say((it.ask?it.ask+" ":"")+String(it.stem).replace(/_{3,}/g,"blank"));
+  say(it.ask, String(it.stem).replace(/_{3,}/g,"blank"));
 };
 KINDS.qword = KINDS.mcq;
 function passageLines(){ return Array.prototype.slice.call(document.querySelectorAll("#plines .pline")); }
@@ -302,7 +302,7 @@ KINDS.evidence = function(it, area, att){
     if(it.lines.indexOf(i)>=0){ d.classList.add("proof"); att.right(); passageLines().forEach(function(x){ x.classList.remove("tappable"); }); }
     else { d.classList.add("tried"); att.wrong(); }
   }); });
-  say(it.stem+" Tap the line in the story that proves it.");
+  say(it.stem, "Tap the line in the story that proves it.");
 };
 KINDS.ref = function(it, area, att){
   area.appendChild(el("p","ask","⬅ Point back: find the word, look BACK, then tap the words that name the thing. Then press Check."));
@@ -383,7 +383,7 @@ KINDS.tf = function(it, area, att){
     sub.appendChild(el("p","ask","✏️ Write your reason in your own words. Start with True or False."));
     openBox(it, sub, att, function(){ att.right("Grown-up will check your reason."); });
   }
-  say("True or false? "+it.stem);
+  say("True or false?", it.stem);
 };
 /* open answer: format checks are automatic; the content is parent-marked against a model answer + checklist */
 function openBox(it, area, att, done){
@@ -410,7 +410,7 @@ KINDS.full = function(it, area, att){
   area.appendChild(el("p","ask","✏️ Answer in a full sentence. Use words from the question. End with a full stop."));
   area.appendChild(stemNode(it.stem));
   openBox(it, area, att, function(){ att.right("Grown-up will check the answer."); });
-  say(it.stem+" Answer in a full sentence.");
+  say(it.stem, "Answer in a full sentence.");
 };
 /* feelings table: pick a feeling word at two points (auto) */
 KINDS.feel2 = function(it, area, att){
@@ -459,7 +459,7 @@ KINDS.edit = function(it, area, att){
     if(editMatch(v, it.accept)){ inp.readOnly=true; b.disabled=true; inp.classList.add("good"); att.right(); }
     else { att.wrong(); inp.select(); } });
   cb.inp.id="answerBox"; cb.btn.id="checkBtn"; area.appendChild(cb.row);
-  say((punc?"A punctuation mark is missing. ":"Find the mistake in the underlined word. ")+String(it.text).replace(/\[\[([^\]|]+)(\|\d+)?\]\]/g,"$1").replace(/\{\{\d*\}\}/g,""));
+  say(punc?"A punctuation mark is missing.":"Find the mistake in the underlined word.", String(it.text).replace(/\[\[([^\]|]+)(\|\d+)?\]\]/g,"$1").replace(/\{\{\d*\}\}/g,""));
 };
 KINDS.dictate = function(it, area, att){
   area.appendChild(el("p","ask","👂 Spelling warm-up: listen, then write the word."));
@@ -489,7 +489,7 @@ function editPassageStep(){
     cb.inp.id="ep"+er.n; cb.btn.id="epBtn"+er.n; c.appendChild(cb.row);
   });
   c.appendChild(feedbackBox()); c.appendChild(nx); main.appendChild(c);
-  say(P.title+". Read the whole passage, then fix each mistake.");
+  say(P.title+".", "Read the whole passage, then fix each mistake.");
   window.__item=P.id;
 }
 /* ---------- grammar cloze (word box, each word used once) ---------- */
@@ -519,7 +519,7 @@ function clozeStep(){
     else { a.wrong(); }
   }
   select(1);
-  say("Cloze challenge. Read the whole passage first. "+C.parts.map(function(x){ return typeof x==="number"?" blank "+x+" ":x; }).join(""));
+  say("Cloze challenge. Read the whole passage first.", C.parts.map(function(x){ return typeof x==="number"?" blank "+x+" ":x; }).join(""));
   window.__item=C.id;
 }
 
@@ -572,7 +572,7 @@ function summary(){
   else if(S.mode==="lesson"){ var pb=btn("🎲 Practice: 5 questions","big",startPractice); pb.id="practiceBtn"; row.appendChild(pb); }
   else { var mb=btn("5 more ▶","big",startPractice); mb.id="moreBtn"; row.appendChild(mb); }
   row.appendChild(hubLink()); c.appendChild(row); main.appendChild(c);
-  say(n+" of "+total+" right on the first try. "+(medal?medal+" level! ":"")+(cap?"Great work! Your brain grows while you rest. Come back tomorrow.":""));
+  say(n+" of "+total+" right on the first try.", medal?medal+" level!":null, cap?"Great work! Your brain grows while you rest. Come back tomorrow.":null);   // the score line stays on the device voice
 }
 
 /* ---------- For Grown-ups page (press and hold) ---------- */
