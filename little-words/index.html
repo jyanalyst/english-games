@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Little Words – English Games</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header>
+  <a href="../" aria-label="All games">🏠</a>
+  <h1>🧩 Little Words</h1>
+  <button class="modebtn" id="modeLesson" type="button">📘 Lesson</button>
+  <button class="modebtn" id="modePractice" type="button">🎲 Practice</button>
+  <button class="ctl" id="muteBtn" type="button" aria-pressed="false">🔊 Voice on</button>
+  <button class="ctl" id="againBtn" type="button">🔁 Say it again</button>
+  <span class="xp" id="xp">⭐ 0 XP</span>
+</header>
+<div class="main" id="main"></div>
+<footer><button class="grownups" id="grownups" type="button" aria-label="For grown-ups: press and hold">For grown-ups (press and hold)</button><span class="tag" id="gameTag">P3 · Grammar · GR-PREP · GR-CONN · GR-QUANT · GR-DEM · GR-TAG · GR-PRON</span></footer>
+<div class="parent hidden" id="parent" role="dialog" aria-label="For grown-ups"></div>
+<script src="bank.js"></script>
+<script src="../assets/voice.js"></script>
+<script src="../assets/engine.js"></script>
+</body>
+</html>
