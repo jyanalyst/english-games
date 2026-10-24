@@ -9,7 +9,9 @@ var TAGS = {"GR-TENSE":"Tenses (time clues)","GR-SVA":"One or many (subject-verb
   "VO-CTX":"Word meaning from clues","VO-FEEL":"Feeling words","VO-SIM":"Similes","VO-FORM":"Word forms (-ful, -ly, -ment)",
   "ED-SPELL":"Editing: spelling","ED-GRAM":"Editing: grammar","ED-PUNC":"Editing: punctuation",
   "CO-REF":"Who or what 'it/they' means","CO-SEQ":"Order of events","CO-TF":"True or false (+ reason)","CO-LIFT":"Lift a word or phrase",
-  "CO-INFER":"Feelings and proof lines","CO-CHAR":"Character trait from actions","CO-FULL":"Full-sentence answers","CO-QW":"Question words (who, where, why...)"};
+  "CO-INFER":"Feelings and proof lines","CO-CHAR":"Character trait from actions","CO-FULL":"Full-sentence answers","CO-QW":"Question words (who, where, why...)",
+  "SC-JOIN":"Joining: and, but, or, so","SC-REASON":"Joining: because, as (reason)","SC-TIME":"Joining: when, while, before, after, until",
+  "SC-THOUGH":"Joining: although (no 'but')","SC-REL":"Joining: who, which","SC-PAIR":"Pairs: both/and, either/or, neither/nor","SC-BEGIN":"Begin with the given word (comma)"};
 /* ---------- storage (device only) ---------- */
 var LS = { get:function(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } },
            set:function(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
@@ -49,11 +51,18 @@ function validItem(it){
   if(it.kind==="edit"||it.kind==="dictate"){ if(!(it.accept||[]).length) e.push("accept");
     (it.accept||[]).forEach(function(x){ if(/[a-z]/i.test(x) && (hasWord(it.nudge,x)||hasWord(it.hint,x))) e.push("nudge/hint shows answer"); });
     if(it.kind==="edit" && !/\[\[[^\]]+\]\]|\{\{\}\}/.test(it.text)) e.push("no underline or circle"); }
+  if(it.kind==="combine"){ var co=it.options||[]; if(co.length<3) e.push("options"); if(!(it.answer>=0&&it.answer<co.length)) e.push("answer index");
+    if((it.errs||[]).length!==co.length) e.push("errs"); if(!(it.given||[]).length) e.push("given");
+    var sa=co[it.answer]; if(sa && (hasWord(it.nudge,sa)||hasWord(it.hint,sa))) e.push("nudge/hint shows answer"); }
+  if(it.kind==="build"){ if(!it.sentence||!tokens(it.sentence).length) e.push("sentence"); if(!(it.given||[]).length) e.push("given");
+    if(hasWord(it.nudge,it.sentence)||hasWord(it.hint,it.sentence)) e.push("nudge/hint shows answer"); }
   if(it.kind==="ref"||it.kind==="lift"){ var a0=it.accept&&it.accept[0]; if(!a0) e.push("accept");
     else if(String(it.nudge+" "+it.hint).toLowerCase().indexOf(a0.toLowerCase())>=0) e.push("nudge/hint shows answer"); }
   return e;
 }
 
+function tokens(s){ return String(s).match(/[A-Za-z']+|[,.?!]/g)||[]; }
+function joinTokens(t){ return t.join(" ").replace(/ ([,.?!])/g,"$1"); }
 /* ---------- logging, Leitner, XP, streak, daily cap ---------- */
 var K = { log:"eng.log", box:"eng.leitner", xp:"eng.xp", streak:"eng.streak", daily:"eng.daily", medal:"eng.medal", open:"eng.open", paper:"eng.paper", mins:"eng.minutes" };
 var lastAct = 0;
@@ -428,6 +437,53 @@ KINDS.feel2 = function(it, area, att){
   say(it.stem);
 };
 
+/* ---------- sentence combining: pick the joined sentence, or build it from word tiles ---------- */
+function givenNode(it){
+  var g=el("div","given"); it.given.forEach(function(x){ g.appendChild(el("p","givenline",x)); });
+  g.appendChild(el("span","connchip",it.chip)); return g;
+}
+function errNudge(k){ return (GAME.errNudges||{})[k]||null; }
+KINDS.combine = function(it, area, att){
+  area.appendChild(el("p","ask","🔗 Which is the correct way to join them into ONE sentence?"));
+  area.appendChild(givenNode(it));
+  var opts=el("div","opts long");
+  shuffle(it.options.map(function(o,i){ return i; })).forEach(function(i){
+    var b=btn(it.options[i],"opt long",function(){
+      if(att.finished) return;
+      if(i===it.answer){ b.classList.add("good"); Array.prototype.forEach.call(opts.children,function(x){ x.disabled=true; }); att.right(); }
+      else { b.classList.add("tried"); att.wrong(errNudge(it.errs[i])); }
+    }); b.dataset.i=i; opts.appendChild(b); });
+  area.appendChild(opts);
+  say("Join the two sentences into one.", it.given.join(" "), it.sayWord);
+};
+KINDS.build = function(it, area, att){
+  area.appendChild(el("p","ask","🧱 Tap the tiles to build ONE sentence. Tap a tile in your sentence to take it back."));
+  area.appendChild(givenNode(it));
+  var ans=tokens(it.sentence), tiles=ans.concat(it.decoys.map(function(d){ return d[0]; }));
+  var line=el("div","buildline"); line.id="buildLine"; var ph=el("span","placeholder","Your sentence goes here"); line.appendChild(ph);
+  var pool=el("div","wordbox tiles"); pool.id="tilePool"; var built=[];
+  function redraw(){ line.innerHTML=""; if(!built.length) line.appendChild(ph);
+    built.forEach(function(k,pos){ var t=btn(tiles[k],"tile in",function(){ if(att.finished) return; built.splice(pos,1); pool.querySelector('[data-t="'+k+'"]').classList.remove("used"); pool.querySelector('[data-t="'+k+'"]').disabled=false; redraw(); }); t.dataset.t=k; line.appendChild(t); }); }
+  shuffle(tiles.map(function(x,k){ return k; })).forEach(function(k){
+    var t=btn(tiles[k],"tile",function(){ if(att.finished||t.disabled) return; built.push(k); t.disabled=true; t.classList.add("used"); redraw(); }); t.dataset.t=k; pool.appendChild(t); });
+  function clear(){ built=[]; Array.prototype.forEach.call(pool.children,function(x){ x.disabled=false; x.classList.remove("used"); }); redraw(); }
+  area.appendChild(line); area.appendChild(pool);
+  var row=el("div","row");
+  var cl=btn("↩ Clear","quiet",function(){ if(!att.finished) clear(); }); cl.id="clearBtn";
+  var chk=btn("Check ✔","big",function(){
+    if(att.finished) return;
+    if(!built.length){ showFb("no","Tap the tiles to build your sentence first."); return; }
+    var toks=built.map(function(k){ return tiles[k]; }), got=joinTokens(toks);
+    var ok=[it.sentence].concat(it.alts||[]).some(function(a){ return joinTokens(tokens(a))===got; });
+    if(ok){ chk.disabled=true; cl.disabled=true; Array.prototype.forEach.call(pool.children,function(x){ x.disabled=true; }); line.classList.add("good"); att.right(); return; }
+    var dec=built.filter(function(k){ return k>=ans.length; }).map(function(k){ return it.decoys[k-ans.length][1]; })[0];
+    var n= dec? errNudge(dec) : (ans.indexOf(",")>=0 && toks.indexOf(",")<0)? errNudge("comma") : toks[toks.length-1]!=="."? errNudge("stop") : toks.filter(function(x){ return x==="."; }).length>1? errNudge("two") : null;
+    clear(); att.wrong(n);
+  }); chk.id="checkBtn";
+  row.appendChild(cl); row.appendChild(chk); area.appendChild(row);
+  say("Build one sentence with the tiles.", it.given.join(" "), it.sayWord);
+};
+
 /* ---------- editing: [[word]] = underlined, [[word|n]] numbered, {{}} or {{n}} = circle for a missing mark ---------- */
 function markedNode(text, cls){
   var p=el("p", cls||"stem edittext"); var re=/\[\[([^\]|]+)(?:\|(\d+))?\]\]|\{\{(\d*)\}\}/g, last=0, m;
@@ -532,7 +588,11 @@ function paperStep(){
   if(P.box){ var b=el("div","wordbox paperbox"); P.box.forEach(function(w){ b.appendChild(el("span","chip static",w)); }); c.appendChild(b); }
   if(P.passage){ var pp=el("div","plines paperlines"); P.passage.forEach(function(l,i){ var d=el("div","pline"); d.appendChild(el("span","ln",String(i+1))); d.appendChild(el("span","lt",l)); pp.appendChild(d); }); c.appendChild(pp); }
   if(P.text) c.appendChild(P.marked? markedNode(P.text,"passage-text paper") : el("p","passage-text paper",P.text));
-  if(P.questions){ var qo=el("ol","paperq"); P.questions.forEach(function(q){ qo.appendChild(el("li",null,q)); }); c.appendChild(qo); }
+  var typed=[];
+  if(P.questions){ var qo=el("ol","paperq"); P.questions.forEach(function(q,qi){ var li=el("li",null,q);
+      if(P.typed){ li.appendChild(el("div","writeline","____________________________________________")); var ta=el("textarea","answer typed noprint"); ta.rows=2; ta.id="typed"+(qi+1);
+        ta.setAttribute("autocapitalize","sentences"); ta.setAttribute("aria-label","Type answer "+(qi+1)+" (optional)"); ta.placeholder="Optional: type it here too, for a grown-up to check"; typed.push(ta); li.appendChild(ta); }
+      qo.appendChild(li); }); c.appendChild(qo); }
   c.appendChild(el("h3",null,"Grown-up checklist (tick on paper or here)"));
   var ul=el("ul","check paper-check");
   P.checklist.forEach(function(x,i){ var li=el("li"); var lb=el("label"); var cb=el("input"); cb.type="checkbox"; cb.dataset.i=i; lb.appendChild(cb); lb.appendChild(document.createTextNode(" "+x)); li.appendChild(lb); ul.appendChild(li); });
@@ -543,6 +603,9 @@ function paperStep(){
   var dn=btn("I wrote it on paper ✔","big",function(){
     var ticks=Array.prototype.map.call(ul.querySelectorAll("input"),function(x){ return x.checked; });
     var all=LS.get(K.paper,[]); all.push({d:dayStr(), game:GAME.slug, ticks:ticks}); LS.set(K.paper,all);
+    if(typed.length){ var op=LS.get(K.open,[]), t0=Date.now(); typed.forEach(function(ta,qi){ var v=ta.value.trim(); if(!v) return;
+      op.push({d:dayStr(), t:t0+qi, game:GAME.slug, id:"paper-"+(qi+1), q:P.questions[qi], typed:v, model:P.models[qi], checklist:P.qchecks[qi], marks:null}); });
+      if(op.length>200) op=op.slice(-200); LS.set(K.open,op); }
     summary(); }); dn.id="paperDone";
   row.appendChild(pr); row.appendChild(dn); c.appendChild(row);
   main.appendChild(c);
@@ -641,7 +704,7 @@ function boot(){
   $("modePractice").addEventListener("click", function(){ startPractice(); });
   startScreen();
 }
-window.ENG = { pickRound:pickRound, validItem:validItem, eligible:eligible, TAGS:TAGS, LS:LS, K:K, ROUND:ROUND,
+window.ENG = { tokens:tokens, joinTokens:joinTokens, pickRound:pickRound, validItem:validItem, eligible:eligible, TAGS:TAGS, LS:LS, K:K, ROUND:ROUND,
   playItem:function(id){ var it=byId(id); S.mode="practice"; S.queue=[it]; S.idx=0; S.score=0; showItem(); },
   playCloze:function(){ S.mode="lesson"; clozeStep(); }, paperStep:paperStep, parentPage:parentPage, startLesson:startLesson, summaryText:summaryText,
   state:S };

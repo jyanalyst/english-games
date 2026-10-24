@@ -108,3 +108,17 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:10p
 .corrbox{font:inherit;font-size:22px;padding:8px 10px;border:2px solid #24577a;border-radius:10px;width:220px;max-width:60vw}
 .corrbox.good{background:#d8f3e2;border-color:#2e8b57}
 .corr .ctl{background:#2e8b57;color:#fff;min-height:48px;padding:8px 16px}
+.given{background:#fffaf0;border-radius:12px;padding:8px 14px;margin:8px 0}
+.givenline{font-size:22px;margin:4px 0}
+.connchip{display:inline-block;background:#24577a;color:#fff;border-radius:10px;padding:4px 12px;font-weight:700;font-size:19px;margin-top:4px}
+.opts.long{grid-template-columns:1fr}
+.opt.long{text-align:left;font-size:20px}
+.buildline{min-height:64px;border:2px dashed #24577a;border-radius:14px;padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;background:#f6f9fb}
+.buildline.good{background:#d8f3e2;border-style:solid;border-color:#2e8b57}
+.placeholder{color:#8a96a0;font-size:17px}
+.tile{background:#eef5fa;border:2px solid #b9d3e4;border-radius:12px;padding:8px 14px;font-size:21px;min-height:50px;min-width:44px;color:#23303b}
+.tile.in{background:#fff;border-color:#24577a}
+.tile.used{opacity:.25}
+.writeline{color:#b9c4cc;letter-spacing:1px;margin:8px 0;overflow:hidden;white-space:nowrap}
+.answer.typed{font-size:18px;margin-top:4px}
+@media print{ .writeline{color:#000} }
