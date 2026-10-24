@@ -64,7 +64,7 @@ function validItem(it){
 function tokens(s){ return String(s).match(/[A-Za-z']+|[,.?!]/g)||[]; }
 function joinTokens(t){ return t.join(" ").replace(/ ([,.?!])/g,"$1"); }
 /* ---------- logging, Leitner, XP, streak, daily cap ---------- */
-var K = { log:"eng.log", box:"eng.leitner", xp:"eng.xp", streak:"eng.streak", daily:"eng.daily", medal:"eng.medal", open:"eng.open", paper:"eng.paper", mins:"eng.minutes" };
+var K = { player:"eng.player", players:"eng.players", hist:"eng.history", cur:"eng.cursession", log:"eng.log", box:"eng.leitner", xp:"eng.xp", streak:"eng.streak", daily:"eng.daily", medal:"eng.medal", open:"eng.open", paper:"eng.paper", mins:"eng.minutes" };
 var lastAct = 0;
 function logAnswer(item, first, hints){
   var now=Date.now(), log=LS.get(K.log,[]);
@@ -102,8 +102,32 @@ function bumpStreak(){
   s.last=t; LS.set(K.streak,s); return s;
 }
 function daily(){ var d=LS.get(K.daily,{date:null,rounds:0}); if(d.date!==dayStr()) d={date:dayStr(),rounds:0}; return d; }
-function capReached(){ return false; }   // daily limit removed (Jeremy, 24 Oct 2026)
+function capReached(){ return false; }   // daily limit removed (24 Oct 2026)
 function roundDone(){ var d=daily(); d.rounds++; LS.set(K.daily,d); bumpStreak(); return d; }
+
+/* ---------- player + session history (this device only: localStorage, never sent anywhere) ---------- */
+var HIST_MAX = 200;
+function cleanName(n){ return String(n==null?"":n).replace(/[\u0000-\u001f<>]/g,"").replace(/\s+/g," ").trim().slice(0,20); }
+function player(){ var n=cleanName(LS.get(K.player,"")); return n||"Player"; }
+function setPlayer(n){ n=cleanName(n)||"Player"; LS.set(K.player,n); var ps=LS.get(K.players,[]).filter(function(x){ return x!==n; }); ps.unshift(n); LS.set(K.players, ps.slice(0,8)); return n; }
+function sgt(t){ var d=new Date(t+8*36e5); return d.toISOString().replace(/\.\d+Z$/,"+08:00"); }   // wall-clock time in Singapore
+var SES=null;
+function sesSave(){ if(SES) LS.set(K.cur,SES); else { try{ localStorage.removeItem(K.cur); }catch(e){} } }
+function sesStart(mode, total){ sesClose(true); if(!GAME) return;
+  SES={id:GAME.slug+"-"+Date.now()+"-"+Math.floor(Math.random()*1e6), player:player(), game:GAME.slug, title:GAME.title, mode:mode, t0:Date.now(), total:total, done:0, correct:0, hints:0, mistakes:{}}; sesSave(); }
+function sesItem(tag, first){ if(!SES) return; SES.done++; if(first) SES.correct++; else SES.mistakes[tag]=(SES.mistakes[tag]||0)+1; sesSave(); }
+function sesHint(){ if(!SES) return; SES.hints++; sesSave(); }
+function histAdd(r){ var h=LS.get(K.hist,[]); if(h.some(function(x){ return x.id===r.id; })) return false;   // dedupe by session id
+  h.push(r); if(h.length>HIST_MAX) h=h.slice(-HIST_MAX); LS.set(K.hist,h); return true; }
+function entryOf(x, partial){ var top=Object.keys(x.mistakes||{}).sort(function(a,b){ return x.mistakes[b]-x.mistakes[a]; }).slice(0,3);
+  return {id:x.id, player:x.player, t:x.t1||Date.now(), when:sgt(x.t1||Date.now()), game:x.game, title:x.title, mode:x.mode, done:x.done, total:x.total,
+    correct:x.mode==="paper"?null:x.correct, pct:x.mode==="paper"||!x.done?null:Math.round(100*x.correct/x.done), hints:x.hints, top:top, ticks:x.ticks, partial:!!partial}; }
+// finish the open session: complete=true (round finished), or partial (left partway). A partial session with nothing done is dropped.
+function sesClose(partial){ if(!SES) return; var x=SES; SES=null; sesSave(); x.t1=Date.now(); if(partial && !x.done) return; histAdd(entryOf(x, partial)); }
+function sesPaper(ticks){ if(!GAME||!GAME.paper) return; var P=GAME.paper, n=(P.questions||P.answers).length;
+  histAdd(entryOf({id:GAME.slug+"-paper-"+Date.now(), player:player(), game:GAME.slug, title:GAME.title, mode:"paper", total:n, done:n, hints:0, mistakes:{}, ticks:ticks.filter(Boolean).length+"/"+ticks.length}, false)); }
+// a session left open by a page that closed without pagehide (e.g. Safari killed the tab) is saved as partial on the next visit
+function sesRecover(){ var old=LS.get(K.cur,null); if(old && old.id){ try{ localStorage.removeItem(K.cur); }catch(e){} old.t1=old.t1||Date.now(); if(old.done) histAdd(entryOf(old,true)); } }
 
 /* ---------- picking a Practice round (exposed for the seeded sweep test) ---------- */
 function eligible(){ return GAME.items.filter(function(it){ return it.practice!==false && validItem(it).length===0; }); }
@@ -172,12 +196,12 @@ function Attempt(item, onDone){
 Attempt.prototype.wrong=function(nudge, hint){
   this.misses++;
   if(this.misses===1){ var n=nudge||this.item.nudge; showFb("no","Not yet. "+n, ["Not yet.", n]); }
-  else { var h=hint||this.item.hint; showFb("hint","Hint: "+h, ["Hint:", h]); }
+  else { var h=hint||this.item.hint; sesHint(); showFb("hint","Hint: "+h, ["Hint:", h]); }
 };
 Attempt.prototype.right=function(extra){
   if(this.finished) return; this.finished=true;
   var it=this.item, first=this.misses===0;
-  var fixed=logAnswer(it, first, Math.min(this.misses,2));
+  var fixed=logAnswer(it, first, Math.min(this.misses,2)); sesItem(it.tag, first);
   var gain = first? 10 : 5; if(fixed) gain+=5; addXP(gain);
   showFb("yes", (first?"Yes! ":"You got it! ")+(it.why||"")+(extra?" "+extra:"")+"  (+"+gain+" XP"+(fixed?", you fixed a past mistake!":"")+")",
     [first?"Yes!":"You got it!", it.why, extra]);
@@ -191,6 +215,7 @@ function startScreen(){
   c.appendChild(el("div","bigemoji",GAME.emoji));
   c.appendChild(el("h2",null,GAME.title));
   c.appendChild(el("p",null,GAME.intro));
+  var pl=el("p","small playing","Playing as "+player()+". (Change the player on the home page.)"); pl.id="playingAs"; c.appendChild(pl);
   if(capReached()) c.appendChild(el("p","rest","Great work today! Your brain grows while you rest. Come back tomorrow. You can still do an optional review."));
   var b1=btn("Start with my tutor 🔊","big",function(){ Voice.setMuted(false); updMute(); go(); });
   var b2=btn("Play without sound","quiet",function(){ Voice.setMuted(true); updMute(); go(); });
@@ -230,7 +255,9 @@ function workedExample(){
   }
   next();
 }
+function lessonTotal(){ return (GAME.warmup&&!S.warmDone?GAME.warmup.length:0)+GAME.lesson.length+(GAME.cloze?GAME.cloze.blanks.length:0)+(GAME.editPassage?GAME.editPassage.errors.length:0); }
 function startLesson(){
+  if(S.contWarm) S.contWarm=false; else sesStart("lesson", lessonTotal());   // after the warm-up the same Lesson session goes on
   if(GAME.warmup && !S.warmDone){ S.mode="lesson"; S.phase="warmup"; header(); S.queue=GAME.warmup.map(byId); S.idx=0; S.score=0; showItem(); return; }
   S.phase=null; S.mode="lesson"; header();
   S.queue=GAME.lesson.map(function(id){ return byId(id); }); S.idx=0; S.score=0; S.missed=[];
@@ -239,13 +266,13 @@ function startLesson(){
 function startPractice(){
   if(capReached()){ startReview(); return; }
   S.mode="practice"; header();
-  S.queue=pickRound({missed:S.missed, recent:S.recent}); S.idx=0; S.score=0;
+  S.queue=pickRound({missed:S.missed, recent:S.recent}); S.idx=0; S.score=0; sesStart("practice", S.queue.length);
   if(GAME.passages && S.queue[0]) S.recent.push(S.queue[0].passage);
   S.missed=[]; showItem();
 }
 function startReview(){
   S.mode="review"; header();
-  S.queue=pickRound({missed:S.missed, recent:S.recent, reviewOnly:true}); S.idx=0; S.score=0; S.missed=[];
+  S.queue=pickRound({missed:S.missed, recent:S.recent, reviewOnly:true}); S.idx=0; S.score=0; S.missed=[]; if(S.queue.length) sesStart("practice", S.queue.length);
   if(!S.queue.length){ setMain("rest"); var c=el("div","card center"); c.appendChild(el("div","bigemoji","🌙"));
     c.appendChild(el("h2",null,"Great work! Your brain grows while you rest."));
     c.appendChild(el("p",null,"Come back tomorrow. Nothing to review right now."));
@@ -581,6 +608,7 @@ function clozeStep(){
 
 /* ---------- exam-format paper step + printable checklist ---------- */
 function paperStep(){
+  if(SES && SES.mode==="lesson") sesClose(false);
   var P=GAME.paper; setMain("paper");
   var c=el("div","card sheet"); c.id="paperSheet";
   c.appendChild(el("h2",null,"📝 "+P.title));
@@ -602,7 +630,7 @@ function paperStep(){
   var pr=btn("🖨 Print this sheet","ctl",function(){ window.print(); }); pr.id="printBtn";
   var dn=btn("I wrote it on paper ✔","big",function(){
     var ticks=Array.prototype.map.call(ul.querySelectorAll("input"),function(x){ return x.checked; });
-    var all=LS.get(K.paper,[]); all.push({d:dayStr(), game:GAME.slug, ticks:ticks}); LS.set(K.paper,all);
+    var all=LS.get(K.paper,[]); all.push({d:dayStr(), game:GAME.slug, ticks:ticks}); LS.set(K.paper,all); sesPaper(ticks);
     if(typed.length){ var op=LS.get(K.open,[]), t0=Date.now(); typed.forEach(function(ta,qi){ var v=ta.value.trim(); if(!v) return;
       op.push({d:dayStr(), t:t0+qi, game:GAME.slug, id:"paper-"+(qi+1), q:P.questions[qi], typed:v, model:P.models[qi], checklist:P.qchecks[qi], marks:null}); });
       if(op.length>200) op=op.slice(-200); LS.set(K.open,op); }
@@ -613,12 +641,13 @@ function paperStep(){
 }
 
 function afterItems(){
-  if(S.phase==="warmup"){ S.phase=null; S.warmDone=true; startLesson(); return; }
+  if(S.phase==="warmup"){ S.phase=null; S.warmDone=true; S.contWarm=true; startLesson(); return; }
   if(S.mode==="lesson"){ S.lessonScore=S.score; if(GAME.cloze){ clozeStep(); return; } if(GAME.editPassage){ editPassageStep(); return; } paperStep(); return; }
   summary();
 }
 function medalFor(n){ return n>=5?"Gold":n>=4?"Silver":n>=3?"Bronze":null; }
 function summary(){
+  if(SES) sesClose(false);
   var d=roundDone(); var cap = false;
   setMain("summary"); var c=el("div","card center");
   var n = S.mode==="lesson"? S.lessonScore : S.score, total = S.queue.length;
@@ -674,6 +703,11 @@ function parentPage(){
     var cbs=[]; r.checklist.forEach(function(x){ var lb=el("label","blk"); var cb=el("input"); cb.type="checkbox"; cbs.push(cb); lb.appendChild(cb); lb.appendChild(document.createTextNode(" "+x)); d.appendChild(lb); });
     d.appendChild(btn("Save marks","ctl",function(){ var all=LS.get(K.open,[]); all.forEach(function(x){ if(x.t===r.t && x.id===r.id) x.marks=cbs.map(function(c){ return c.checked; }); }); LS.set(K.open,all); d.classList.add("marked"); d.appendChild(el("p","small","Saved.")); }));
     c.appendChild(d); });
+  c.appendChild(el("h3",null,"Practice history"));
+  c.appendChild(el("p","small","The practice history is kept on this device only (in this browser). Clearing Safari's website data, private browsing or another device will not show it."));
+  var ch=btn("Clear history (press and hold)","ctl danger"); ch.id="clearHistory"; var chMsg=el("span","small"); chMsg.id="clearMsg";
+  holdButton(ch, function(){ LS.set(K.hist,[]); try{ localStorage.removeItem(K.cur); }catch(e){} chMsg.textContent=" History cleared."; if($("history")) renderHistory(); });
+  c.appendChild(ch); c.appendChild(chMsg);
   var sum=summaryText(); var pre=el("textarea","sumtext"); pre.value=sum; pre.readOnly=true; pre.rows=6; pre.id="sumText";
   c.appendChild(el("h3",null,"Copy summary for chat")); c.appendChild(pre);
   var row=el("div","row");
@@ -689,6 +723,57 @@ function summaryText(){
     ". Streak "+(s.n||0)+". Minutes (7 days) "+Math.round(m7)+". Rounds today "+daily().rounds+". Open answers to mark: "+open+".";
 }
 
+/* ---------- hub: who is playing + my practice history ---------- */
+function playerBox(ask){
+  var box=$("playerBox"); if(!box) return; box.innerHTML="";
+  var known=LS.get(K.player,null)!==null;
+  if(known && !ask){ var row=el("div","card hello"); var h=el("h2",null,"Hi, "+player()+"!"); h.id="hello"; row.appendChild(h);
+    var ch=btn("Change player","linkbtn",function(){ playerBox(true); }); ch.id="changePlayer"; row.appendChild(ch); box.appendChild(row); return; }
+  var c=el("div","card center ask-name"); c.id="namePrompt";
+  c.appendChild(el("h2",null,"Who is playing?"));
+  var inp=el("input","namebox"); inp.type="text"; inp.id="nameInput"; inp.maxLength=20; inp.setAttribute("autocomplete","off"); inp.setAttribute("autocapitalize","words"); inp.setAttribute("spellcheck","false"); inp.setAttribute("aria-label","Your name");
+  inp.placeholder="Type your name"; c.appendChild(inp);
+  var go=btn("Let's go! ▶","big",function(){ setPlayer(inp.value); playerBox(false); renderHistory(); }); go.id="nameGo";
+  inp.addEventListener("keydown",function(e){ if(e.key==="Enter") go.click(); });
+  c.appendChild(go);
+  var ps=LS.get(K.players,[]); if(ps.length){ var r=el("div","row"); r.appendChild(el("span","small","Or tap your name: "));
+    ps.forEach(function(n,i){ var b=btn(n,"chip",function(){ setPlayer(n); playerBox(false); renderHistory(); }); b.id="pick"+i; r.appendChild(b); }); c.appendChild(r); }
+  c.appendChild(el("p","small","Your name stays on this device only. It is not sent anywhere."));
+  box.appendChild(c);
+}
+function dayOf(iso){ return iso.slice(0,10); }
+function niceDay(d){ var dt=new Date(d+"T12:00:00+08:00"); var M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], W=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return W[(dt.getUTCDay())]+" "+(+d.slice(8,10))+" "+M[+d.slice(5,7)-1]+" "+d.slice(0,4); }
+var histFilter="all";
+function renderHistory(){
+  var sec=$("history"); if(!sec) return; sec.innerHTML="";
+  sec.appendChild(el("h2",null,"📒 My practice history"));
+  var all=LS.get(K.hist,[]).slice().sort(function(a,b){ return b.t-a.t; });
+  var names=[]; all.forEach(function(r){ if(names.indexOf(r.player)<0) names.push(r.player); });
+  if(histFilter!=="all" && names.indexOf(histFilter)<0) histFilter="all";
+  var fr=el("div","row left filterrow"); fr.id="playerFilter"; fr.setAttribute("role","group"); fr.setAttribute("aria-label","Show player"); fr.appendChild(el("span","small","Show: "));
+  [["all","Everyone"]].concat(names.map(function(n){ return [n,n]; })).forEach(function(o,i){ var b=btn(o[1],"chip"+(o[0]===histFilter?" on":""),function(){ histFilter=o[0]; renderHistory(); });
+    b.dataset.p=o[0]; b.setAttribute("aria-pressed", o[0]===histFilter?"true":"false"); fr.appendChild(b); });   // buttons, not a <select> (WebKit's select injects an inline style our CSP blocks)
+  sec.appendChild(fr);
+  var rows=all.filter(function(r){ return histFilter==="all"||r.player===histFilter; });
+  if(!rows.length) sec.appendChild(el("p",null,"No sessions yet. Finish a round and it will show up here! ⭐"));
+  var days=[]; rows.forEach(function(r){ var d=dayOf(r.when); if(days.indexOf(d)<0) days.push(d); });
+  days.forEach(function(d){
+    var rs=rows.filter(function(r){ return dayOf(r.when)===d; }), items=0, sc=[]; rs.forEach(function(r){ items+=r.done; if(r.pct!=null) sc.push(r.pct); });
+    var avg=sc.length? Math.round(sc.reduce(function(a,b){ return a+b; },0)/sc.length)+"%" : "–";
+    var h=el("h3","histday",niceDay(d)); sec.appendChild(h);
+    var tot=el("p","histtot","Sessions: "+rs.length+" · Questions: "+items+" · Average score: "+avg); tot.dataset.day=d; sec.appendChild(tot);
+    var wrap=el("div","tablewrap"); var t=el("table","histtable"); t.dataset.day=d; var hr=el("tr");
+    ["Time","Player","Game","Mode","Done","Right first try","Score","Hints","Tricky tags"].forEach(function(x){ hr.appendChild(el("th",null,x)); }); t.appendChild(hr);
+    rs.forEach(function(r){ var tr=el("tr", r.partial?"partial":null);
+      [r.when.slice(11,16), r.player, r.title, (r.mode==="paper"?"📝 paper":r.mode==="lesson"?"📘 lesson":"🎲 practice")+(r.partial?" (stopped early)":""),
+       r.done+" / "+r.total, r.correct==null?"–":String(r.correct), r.pct==null?(r.ticks?"ticks "+r.ticks:"–"):r.pct+"%", String(r.hints||0), (r.top||[]).join(", ")||"–"]
+        .forEach(function(x){ tr.appendChild(el("td",null,x)); }); t.appendChild(tr); });
+    wrap.appendChild(t); sec.appendChild(wrap);
+  });
+  sec.appendChild(el("p","small parentnote","For grown-ups: this history is saved on this iPad only, in this browser. Clearing Safari's website data, private browsing or using another device will not show it. Times are Singapore time. Clear it from the For Grown-ups page (press and hold)."));
+}
+
 /* ---------- mute / say again ---------- */
 function updMute(){ var b=$("muteBtn"); if(!b) return; b.textContent=Voice.muted?"🔇 Voice off":"🔊 Voice on"; b.setAttribute("aria-pressed", Voice.muted?"true":"false"); }
 
@@ -699,14 +784,16 @@ function boot(){
   var ab=$("againBtn"); if(ab) ab.addEventListener("click", function(){ Voice.again(); });
   var gb=$("grownups"); if(gb) holdButton(gb, parentPage);
   addXP(0);
-  if(!GAME){ return; }
+  sesRecover();
+  window.addEventListener("pagehide", function(){ sesClose(true); });
+  if(!GAME){ playerBox(false); renderHistory(); return; }
   $("modeLesson").addEventListener("click", function(){ if(capReached()){ startReview(); return; } ruleCard(); });
   $("modePractice").addEventListener("click", function(){ startPractice(); });
   startScreen();
 }
 window.ENG = { tokens:tokens, joinTokens:joinTokens, pickRound:pickRound, validItem:validItem, eligible:eligible, TAGS:TAGS, LS:LS, K:K, ROUND:ROUND,
-  playItem:function(id){ var it=byId(id); S.mode="practice"; S.queue=[it]; S.idx=0; S.score=0; showItem(); },
+  playItem:function(id){ sesClose(true); var it=byId(id); S.mode="practice"; S.queue=[it]; S.idx=0; S.score=0; showItem(); },
   playCloze:function(){ S.mode="lesson"; clozeStep(); }, paperStep:paperStep, parentPage:parentPage, startLesson:startLesson, summaryText:summaryText,
-  state:S };
+  state:S, player:player, history:function(){ return LS.get(K.hist,[]); }, session:function(){ return SES; } };
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

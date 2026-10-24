@@ -122,3 +122,21 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:10p
 .writeline{color:#b9c4cc;letter-spacing:1px;margin:8px 0;overflow:hidden;white-space:nowrap}
 .answer.typed{font-size:18px;margin-top:4px}
 @media print{ .writeline{color:#000} }
+.hello{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hello h2{margin:0}
+.linkbtn{background:none;border:0;color:#24577a;text-decoration:underline;font-size:17px;min-height:44px}
+.namebox{font:inherit;font-size:24px;padding:10px 14px;border:2px solid #24577a;border-radius:12px;width:320px;max-width:80vw;display:block;margin:8px auto}
+.history h2{margin-top:0}
+.row.left{justify-content:flex-start}
+.filter{font:inherit;font-size:17px;padding:6px 10px;border-radius:10px;border:2px solid #b9d3e4;min-height:44px}
+.histday{margin:16px 0 2px;color:#24577a}
+.histtot{margin:0 0 6px;font-weight:600;font-size:17px}
+.tablewrap{overflow-x:auto}
+.histtable{border-collapse:collapse;width:100%;font-size:16px}
+.histtable th,.histtable td{border:1px solid #d8dee3;padding:6px;text-align:left}
+.histtable th{background:#eef5fa}
+.histtable tr.partial td{color:#5b6770;font-style:italic}
+.parentnote{background:#f6f9fb;border-radius:10px;padding:8px;margin-top:12px}
+.ctl.danger{background:#fde8e8;color:#8a1f1f}
+.playing{margin-top:-4px}
+.filterrow .chip.on{background:#ffd88a;border-color:#e0a800;font-weight:700}
