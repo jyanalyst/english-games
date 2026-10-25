@@ -119,6 +119,8 @@ function sesItem(tag, first){ if(!SES) return; SES.done++; if(first) SES.correct
 function sesHint(){ if(!SES) return; SES.hints++; sesSave(); }
 function histAdd(r){ var h=LS.get(K.hist,[]); if(h.some(function(x){ return x.id===r.id; })) return false;   // dedupe by session id
   h.push(r); if(h.length>HIST_MAX) h=h.slice(-HIST_MAX); LS.set(K.hist,h); return true; }
+// insert or replace one entry by id (the "Test yourself" check-up updates its own entry after each question)
+function histPut(r){ var h=LS.get(K.hist,[]).filter(function(x){ return x.id!==r.id; }); h.push(r); if(h.length>HIST_MAX) h=h.slice(-HIST_MAX); LS.set(K.hist,h); return true; }
 function entryOf(x, partial){ var top=Object.keys(x.mistakes||{}).sort(function(a,b){ return x.mistakes[b]-x.mistakes[a]; }).slice(0,3);
   return {id:x.id, player:x.player, t:x.t1||Date.now(), when:sgt(x.t1||Date.now()), game:x.game, title:x.title, mode:x.mode, done:x.done, total:x.total,
     correct:x.mode==="paper"?null:x.correct, pct:x.mode==="paper"||!x.done?null:Math.round(100*x.correct/x.done), hints:x.hints, top:top, ticks:x.ticks, partial:!!partial}; }
@@ -664,6 +666,7 @@ function summary(){
   else if(S.mode==="lesson"){ var pb=btn("🎲 Practice: 5 questions","big",startPractice); pb.id="practiceBtn"; row.appendChild(pb); }
   else { var mb=btn("5 more ▶","big",startPractice); mb.id="moreBtn"; row.appendChild(mb); }
   row.appendChild(hubLink()); c.appendChild(row); main.appendChild(c);
+  if(S.mode==="lesson") try{ window.dispatchEvent(new CustomEvent("eng:lessondone",{detail:{slug:GAME.slug}})); }catch(e){}   // unlocks "Test yourself"
   say(n+" of "+total+" right on the first try.", medal?medal+" level!":null, cap?"Great work! Your brain grows while you rest. Come back tomorrow.":null);   // the score line stays on the device voice
 }
 
@@ -766,11 +769,12 @@ function renderHistory(){
     var wrap=el("div","tablewrap"); var t=el("table","histtable"); t.dataset.day=d; var hr=el("tr");
     ["Time","Player","Game","Mode","Done","Right first try","Score","Hints","Tricky tags"].forEach(function(x){ hr.appendChild(el("th",null,x)); }); t.appendChild(hr);
     rs.forEach(function(r){ var tr=el("tr", r.partial?"partial":null);
-      [r.when.slice(11,16), r.player, r.title, (r.mode==="paper"?"📝 paper":r.mode==="lesson"?"📘 lesson":"🎲 practice")+(r.partial?" (stopped early)":""),
-       r.done+" / "+r.total, r.correct==null?"–":String(r.correct), r.pct==null?(r.ticks?"ticks "+r.ticks:"–"):r.pct+"%", String(r.hints||0), (r.top||[]).join(", ")||"–"]
+      [r.when.slice(11,16), r.player, r.title, (r.mode==="paper"?"📝 paper":r.mode==="lesson"?"📘 lesson":r.mode==="test"?"🏅 Test":"🎲 practice")+(r.partial?" (stopped early)":""),
+       r.done+" / "+r.total, r.correct==null?"–":String(r.correct), r.pct==null?(r.ticks?"ticks "+r.ticks:"–"):r.pct+"%"+(r.mode==="test"&&r.stars!=null?" · ⭐ "+r.stars:""), String(r.hints||0), (r.top||[]).join(", ")||"–"]
         .forEach(function(x){ tr.appendChild(el("td",null,x)); }); t.appendChild(tr); });
     wrap.appendChild(t); sec.appendChild(wrap);
   });
+  try{ window.dispatchEvent(new CustomEvent("eng:historydrawn")); }catch(e){}
   sec.appendChild(el("p","small parentnote","For grown-ups: this history is saved on this iPad only, in this browser. Clearing Safari's website data, private browsing or using another device will not show it. Times are Singapore time. Clear it from the For Grown-ups page (press and hold)."));
 }
 
@@ -794,6 +798,6 @@ function boot(){
 window.ENG = { tokens:tokens, joinTokens:joinTokens, pickRound:pickRound, validItem:validItem, eligible:eligible, TAGS:TAGS, LS:LS, K:K, ROUND:ROUND,
   playItem:function(id){ sesClose(true); var it=byId(id); S.mode="practice"; S.queue=[it]; S.idx=0; S.score=0; showItem(); },
   playCloze:function(){ S.mode="lesson"; clozeStep(); }, paperStep:paperStep, parentPage:parentPage, startLesson:startLesson, summaryText:summaryText,
-  state:S, player:player, history:function(){ return LS.get(K.hist,[]); }, session:function(){ return SES; } };
+  state:S, player:player, histPut:histPut, sgt:sgt, ruleCard:ruleCard, workedExample:workedExample, renderHistory:renderHistory, history:function(){ return LS.get(K.hist,[]); }, session:function(){ return SES; } };
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

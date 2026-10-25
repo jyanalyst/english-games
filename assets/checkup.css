@@ -1,0 +1,64 @@
+/* Check-up ("Test yourself"), same look as the maths check-up */
+html.ckopen, html.ckopen body{overflow:hidden}
+#ckOverlay{position:fixed;inset:0;z-index:60;background:#f4f1ea;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 40px;font-size:18px;color:#222}
+#ckOverlay[hidden],#ckBanner[hidden],#ckDaddyView[hidden],#modeTest[hidden]{display:none}
+.ckhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-width:1100px;margin:0 auto 8px}
+.cktitle{font-weight:800;font-size:19px;flex:1 1 auto}
+.ckpts{font-weight:700;background:#fff7d6;border-radius:999px;padding:4px 12px}
+.ckq{border:0;background:#fff;border-radius:10px;padding:8px 12px;font-size:16px;box-shadow:0 1px 4px #0002;cursor:pointer;color:#222}
+.ckdots{display:flex;gap:8px;justify-content:center;margin:4px auto 10px}
+.ckdots span{min-width:40px;text-align:center;padding:4px 8px;border-radius:999px;background:#e6e1d6;font-weight:700}
+.ckdots .cur{background:#3b6fd8;color:#fff}.ckdots .first{background:#ffe27a}.ckdots .got{background:#fff0b3}.ckdots .skip{background:#ddd;color:#888}
+.ckbody{max-width:820px;margin:0 auto}
+.ckbody.withp{max-width:1100px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:12px;align-items:start}
+.ckpassage{background:#fffdf6;border-radius:6px;box-shadow:0 2px 10px #0002;padding:14px 16px;font-family:Georgia,"Times New Roman",serif;font-size:18px;line-height:1.5}
+.ckptitle{font-weight:700;text-align:center;margin-bottom:6px}
+.ckpl{display:flex;gap:8px;padding:2px 4px;border-radius:6px}.ckpl.hl{background:#fff3b0}
+.ckpl .ckln{color:#888;font-size:14px;min-width:20px;text-align:right;padding-top:3px;font-family:system-ui,sans-serif}
+.ckpaper{background:#fff;border-radius:6px;box-shadow:0 2px 10px #0002;padding:20px 22px;font-family:Georgia,"Times New Roman",serif}
+.ckpaper button,.ckpaper input{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.ckqhead{display:flex;gap:10px;align-items:center;font-family:system-ui,-apple-system,sans-serif;color:#555;font-size:16px;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px}
+.ckmarks{margin-left:auto}.cknew{background:#e8f4ff;color:#245;border-radius:999px;padding:2px 10px;font-size:14px}
+.ckinstr{font-style:italic;color:#444;font-size:17px;margin-bottom:6px}
+.cktext{font-size:21px;line-height:1.6;margin:6px 0 12px}.cknum{font-weight:700;margin-right:6px}
+.ckblank{display:inline-block;min-width:60px;text-align:center;border-bottom:2px solid #222}
+.ckul{text-decoration:underline;text-decoration-thickness:2px;font-weight:700}
+.ckgap{color:#c33;font-weight:700}
+.ckopts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.ckopt{text-align:left;border:2px solid #cfd6e2;background:#fff;border-radius:12px;padding:10px 12px;font-size:19px;cursor:pointer;color:#222}
+.ckopt.on{border-color:#2f63c5;background:#e8efff;font-weight:700}.ckopt.good{border-color:#2a8a4a;background:#e3f6e8}.ckopt[disabled]{cursor:default}
+.ckon{font-weight:700;color:#555}
+.ckwbox{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;border:2px solid #444;border-radius:4px;padding:10px;margin:8px 0}
+.ckchip{border:2px solid #cfd6e2;background:#fff;border-radius:999px;padding:8px 16px;font-size:19px;cursor:pointer;color:#222}
+.ckchip.on{border-color:#2f63c5;background:#e8efff;font-weight:700}
+.ckans{display:flex;justify-content:center;margin:8px 0}
+.ckinput{font-size:22px;padding:8px 12px;border:2px solid #444;border-radius:4px;width:260px;max-width:100%}.ckinput.wide{width:100%}
+.ckfb{min-height:28px;margin:8px 0;font-family:system-ui,-apple-system,sans-serif;font-size:19px;line-height:1.45;border-radius:10px;padding:0 4px}
+.ckfb.try{background:#fff4e0;padding:10px 12px}.ckfb.ok{background:#e6f7ea;padding:10px 12px}
+.ckearn{font-weight:700;white-space:nowrap}
+.ckrow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:12px 0 4px}
+.ckbtn{border:0;border-radius:14px;padding:12px 18px;font-size:19px;font-weight:700;cursor:pointer;background:#3b6fd8;color:#fff;box-shadow:0 2px 6px #0002}
+.ckbtn.green{background:#2a8a4a}.ckbtn.blue{background:#2f63c5}.ckbtn.gold{background:#d99a00}.ckbtn.ghost{background:#fff;color:#234;border:2px solid #cfd6e2;box-shadow:none}
+.cklesson{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#eef4ff;border-radius:12px;padding:10px 12px;margin:10px 0;font-family:system-ui,-apple-system,sans-serif}
+.ckll{font-size:17px;color:#234}
+.cksol{margin-top:14px;font-family:system-ui,-apple-system,sans-serif}.cksol h3{margin:4px 0 8px}
+.cklines{width:100%;border-collapse:collapse;font-size:17px}.cklines th{text-align:left;color:#666;font-weight:600;border-bottom:2px solid #ddd;padding:4px 6px}
+.cklines td{border-bottom:1px solid #eee;padding:8px 6px;vertical-align:top}.cklines .ckln{font-weight:700;color:#666;white-space:nowrap}
+.ckst{color:#123;font-weight:600}.ckwhy{color:#444;font-size:16px;line-height:1.45}
+.ckintro,.ckend{text-align:center;font-family:system-ui,-apple-system,sans-serif}.ckbig{font-size:64px}
+.ckrules{display:inline-block;text-align:left;font-size:18px;line-height:1.7}.ckres{font-size:20px}.ckbadge{font-size:21px;font-weight:700;color:#8a5a00}.ckmuted{color:#666}
+.ckoffer{margin-top:14px;background:#eef4ff;border-radius:14px;padding:12px;text-align:center}
+#ckBanner{position:fixed;left:8px;right:8px;bottom:8px;z-index:55;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;background:#fff;border:3px solid #2f63c5;border-radius:16px;padding:10px 12px;box-shadow:0 4px 16px #0003;font-size:18px}
+.ckx{border:0;background:none;font-size:20px;cursor:pointer}
+#ckDaddyView{position:fixed;inset:0;z-index:70;background:linear-gradient(160deg,#fff6d8,#ffe0a3);display:flex;align-items:center;justify-content:center;padding:16px}
+.ckdcard{background:#fff;border-radius:28px;box-shadow:0 8px 30px #0003;padding:28px 32px;text-align:center;max-width:620px;width:100%;font-family:system-ui,-apple-system,sans-serif}
+.ckdbig{font-size:140px;line-height:1.1}.ckdname{font-size:40px;font-weight:800;margin:6px 0}.ckdgame{font-size:24px;color:#444}
+.ckddate{font-size:22px;color:#666;margin:6px 0 14px}.ckdpts{font-size:34px;font-weight:800;color:#8a5a00}.ckdline{font-size:20px;margin:6px 0}
+.ckdtotal{font-size:22px;margin:12px 0 18px;font-weight:700}.ckdbadges{font-size:20px;line-height:1.6;margin:8px 0 14px}
+.modebtn.test{background:#2a8a4a;color:#fff}
+.rewards .rtop{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.rwho{font-size:22px}
+.rstars{font-size:22px;font-weight:800;background:#fff7d6;border-radius:999px;padding:4px 14px}
+.rbadges{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+.rbadges li{padding:6px 8px;border-radius:10px;background:#f4f4f4;color:#777}.rbadges li.got{background:#fff3c4;color:#5a3d00}
+@media (max-width:820px){.ckbody.withp{grid-template-columns:1fr}.ckopts{grid-template-columns:1fr}}
+@media (max-width:600px){.cktext{font-size:19px}.ckdbig{font-size:96px}.ckdname{font-size:30px}}
