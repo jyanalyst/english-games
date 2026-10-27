@@ -64,7 +64,7 @@ function validItem(it){
 function tokens(s){ return String(s).match(/[A-Za-z']+|[,.?!]/g)||[]; }
 function joinTokens(t){ return t.join(" ").replace(/ ([,.?!])/g,"$1"); }
 /* ---------- logging, Leitner, XP, streak, daily cap ---------- */
-var K = { player:"eng.player", players:"eng.players", hist:"eng.history", cur:"eng.cursession", log:"eng.log", box:"eng.leitner", xp:"eng.xp", streak:"eng.streak", daily:"eng.daily", medal:"eng.medal", open:"eng.open", paper:"eng.paper", mins:"eng.minutes" };
+var K = { player:"eng.player", players:"eng.players", hist:"eng.history", cur:"eng.cursession", log:"eng.log", box:"eng.leitner", xp:"eng.xp", streak:"eng.streak", daily:"eng.daily", medal:"eng.medal", open:"eng.open", paper:"eng.paper", mins:"eng.minutes", resume:"eng.resume", levels:"eng.levels" };
 var lastAct = 0;
 function logAnswer(item, first, hints){
   var now=Date.now(), log=LS.get(K.log,[]);
@@ -113,7 +113,7 @@ function setPlayer(n){ n=cleanName(n)||"Player"; LS.set(K.player,n); var ps=LS.g
 function sgt(t){ var d=new Date(t+8*36e5); return d.toISOString().replace(/\.\d+Z$/,"+08:00"); }   // wall-clock time in Singapore
 var SES=null;
 function sesSave(){ if(SES) LS.set(K.cur,SES); else { try{ localStorage.removeItem(K.cur); }catch(e){} } }
-function sesStart(mode, total){ sesClose(true); if(!GAME) return;
+function sesStart(mode, total){ sesClose(true); if(!GAME) return; resumeDel();
   SES={id:GAME.slug+"-"+Date.now()+"-"+Math.floor(Math.random()*1e6), player:player(), game:GAME.slug, title:GAME.title, mode:mode, t0:Date.now(), total:total, done:0, correct:0, hints:0, mistakes:{}}; sesSave(); }
 function sesItem(tag, first){ if(!SES) return; SES.done++; if(first) SES.correct++; else SES.mistakes[tag]=(SES.mistakes[tag]||0)+1; sesSave(); }
 function sesHint(){ if(!SES) return; SES.hints++; sesSave(); }
@@ -125,11 +125,11 @@ function entryOf(x, partial){ var top=Object.keys(x.mistakes||{}).sort(function(
   return {id:x.id, player:x.player, t:x.t1||Date.now(), when:sgt(x.t1||Date.now()), game:x.game, title:x.title, mode:x.mode, done:x.done, total:x.total,
     correct:x.mode==="paper"?null:x.correct, pct:x.mode==="paper"||!x.done?null:Math.round(100*x.correct/x.done), hints:x.hints, top:top, ticks:x.ticks, partial:!!partial}; }
 // finish the open session: complete=true (round finished), or partial (left partway). A partial session with nothing done is dropped.
-function sesClose(partial){ if(!SES) return; var x=SES; SES=null; sesSave(); x.t1=Date.now(); if(partial && !x.done) return; histAdd(entryOf(x, partial)); }
+function sesClose(partial){ if(!SES) return; var x=SES; SES=null; sesSave(); x.t1=Date.now(); if(partial && !x.done) return; histPut(entryOf(x, partial)); }
 function sesPaper(ticks){ if(!GAME||!GAME.paper) return; var P=GAME.paper, n=(P.questions||P.answers).length;
   histAdd(entryOf({id:GAME.slug+"-paper-"+Date.now(), player:player(), game:GAME.slug, title:GAME.title, mode:"paper", total:n, done:n, hints:0, mistakes:{}, ticks:ticks.filter(Boolean).length+"/"+ticks.length}, false)); }
 // a session left open by a page that closed without pagehide (e.g. Safari killed the tab) is saved as partial on the next visit
-function sesRecover(){ var old=LS.get(K.cur,null); if(old && old.id){ try{ localStorage.removeItem(K.cur); }catch(e){} old.t1=old.t1||Date.now(); if(old.done) histAdd(entryOf(old,true)); } }
+function sesRecover(){ var old=LS.get(K.cur,null); if(old && old.id){ try{ localStorage.removeItem(K.cur); }catch(e){} old.t1=old.t1||Date.now(); if(old.done) histPut(entryOf(old,true)); } }
 
 /* ---------- picking a Practice round (exposed for the seeded sweep test) ---------- */
 function eligible(){ return GAME.items.filter(function(it){ return it.practice!==false && validItem(it).length===0; }); }
@@ -212,12 +212,13 @@ Attempt.prototype.right=function(extra){
 
 /* ---------- screens ---------- */
 function startScreen(){
-  setMain("start");
+  S.step="intro"; setMain("start");
   var c=el("div","card center");
   c.appendChild(el("div","bigemoji",GAME.emoji));
   c.appendChild(el("h2",null,GAME.title));
   c.appendChild(el("p",null,GAME.intro));
   var pl=el("p","small playing","Playing as "+player()+". (Change the player on the home page.)"); pl.id="playingAs"; c.appendChild(pl);
+  resumeOffer(c);
   if(capReached()) c.appendChild(el("p","rest","Great work today! Your brain grows while you rest. Come back tomorrow. You can still do an optional review."));
   var b1=btn("Start with my tutor 🔊","big",function(){ Voice.setMuted(false); updMute(); go(); });
   var b2=btn("Play without sound","quiet",function(){ Voice.setMuted(true); updMute(); go(); });
@@ -226,7 +227,7 @@ function startScreen(){
   c.appendChild(b1); c.appendChild(b2); main.appendChild(c);
 }
 function ruleCard(){
-  S.mode="lesson"; header(); setMain("rule");
+  S.mode="lesson"; S.step="intro"; header(); setMain("rule");
   var c=el("div","card"); c.appendChild(el("h2",null,"🔑 "+GAME.rule.title));
   if(GAME.rule.rows){
     var t=el("table","ruletable"); GAME.rule.rows.forEach(function(r){ var tr=el("tr"); r.forEach(function(x,i){ tr.appendChild(el(i===0?"th":"td",null,x)); }); t.appendChild(tr); });
@@ -238,7 +239,7 @@ function ruleCard(){
   main.appendChild(c); say(GAME.rule.say);
 }
 function workedExample(){
-  setMain("worked"); var W=GAME.worked, k=0;
+  S.step="intro"; setMain("worked"); var W=GAME.worked, k=0;
   var c=el("div","card"); c.appendChild(el("h2",null,"👀 Watch me do one"));
   if(W.passage){ var pl=el("div","mini-passage"); W.passage.forEach(function(l,i){ var d=el("div","pline",l); d.dataset.i=i; pl.appendChild(d); }); c.appendChild(pl); }
   var stem=/\[\[|\{\{/.test(W.stem)? markedNode(W.stem) : stemNode(W.stem,"stem"); c.appendChild(stem);
@@ -295,8 +296,8 @@ function showItem(){
   var area=el("div","qarea"); c.appendChild(area); c.appendChild(feedbackBox());
   var nx=btn("Next ▶","big hidden",function(){ S.idx++; showItem(); }); nx.id="nextBtn"; c.appendChild(nx);
   wrap.appendChild(c); main.appendChild(wrap);
-  var att=new Attempt(it, function(first){ if(first) S.score++; else S.missed.push(it.id); nx.classList.remove("hidden"); nx.focus(); });
-  (KINDS[it.kind]||KINDS.mcq)(it, area, att);
+  S.step="items"; var att=new Attempt(it, function(first){ if(first) S.score++; else S.missed.push(it.id); nx.classList.remove("hidden"); nx.focus(); });
+  S.att=att; (KINDS[it.kind]||KINDS.mcq)(it, area, att);
   window.__item = it.id;
 }
 
@@ -559,7 +560,7 @@ KINDS.dictate = function(it, area, att){
   if(!Voice.muted) say("Spell "+it.word+". "+it.sentence+" "+it.word+".");
 };
 function editPassageStep(){
-  var P=GAME.editPassage; setMain("cloze");
+  stepMark("edit"); var P=GAME.editPassage; setMain("cloze");
   var c=el("div","card"); c.appendChild(el("h2",null,"📝 "+P.title));
   c.appendChild(el("p","ask","Read the whole passage. Each underlined word is wrong: write the correct word. Each circle needs a mark: write just the mark."));
   c.appendChild(markedNode(P.text,"passage-text"));
@@ -579,7 +580,7 @@ function editPassageStep(){
 }
 /* ---------- grammar cloze (word box, each word used once) ---------- */
 function clozeStep(){
-  var C=GAME.cloze; setMain("cloze");
+  stepMark("cloze"); var C=GAME.cloze; setMain("cloze");
   var c=el("div","card"); c.appendChild(el("h2",null,"🧩 Cloze challenge: "+C.title));
   c.appendChild(el("p","ask","Read the whole passage first. Tap a blank, then tap the word from the box. Each word is used once only."));
   var box=el("div","wordbox"); box.id="wordbox";
@@ -609,9 +610,9 @@ function clozeStep(){
 }
 
 /* ---------- exam-format paper step + printable checklist ---------- */
-function paperStep(){
+function paperStep(pre){
   if(SES && SES.mode==="lesson") sesClose(false);
-  var P=GAME.paper; setMain("paper");
+  S.step="paper"; var P=GAME.paper; setMain("paper");
   var c=el("div","card sheet"); c.id="paperSheet";
   c.appendChild(el("h2",null,"📝 "+P.title));
   var ol=el("ol","instr"); P.instructions.forEach(function(x){ ol.appendChild(el("li",null,x)); }); c.appendChild(ol);
@@ -621,11 +622,11 @@ function paperStep(){
   var typed=[];
   if(P.questions){ var qo=el("ol","paperq"); P.questions.forEach(function(q,qi){ var li=el("li",null,q);
       if(P.typed){ li.appendChild(el("div","writeline","____________________________________________")); var ta=el("textarea","answer typed noprint"); ta.rows=2; ta.id="typed"+(qi+1);
-        ta.setAttribute("autocapitalize","sentences"); ta.setAttribute("aria-label","Type answer "+(qi+1)+" (optional)"); ta.placeholder="Optional: type it here too, for a grown-up to check"; typed.push(ta); li.appendChild(ta); }
+        ta.setAttribute("autocapitalize","sentences"); ta.setAttribute("aria-label","Type answer "+(qi+1)+" (optional)"); ta.placeholder="Optional: type it here too, for a grown-up to check"; if(pre && pre.typed && pre.typed[qi]) ta.value=pre.typed[qi]; typed.push(ta); li.appendChild(ta); }
       qo.appendChild(li); }); c.appendChild(qo); }
   c.appendChild(el("h3",null,"Grown-up checklist (tick on paper or here)"));
   var ul=el("ul","check paper-check");
-  P.checklist.forEach(function(x,i){ var li=el("li"); var lb=el("label"); var cb=el("input"); cb.type="checkbox"; cb.dataset.i=i; lb.appendChild(cb); lb.appendChild(document.createTextNode(" "+x)); li.appendChild(lb); ul.appendChild(li); });
+  P.checklist.forEach(function(x,i){ var li=el("li"); var lb=el("label"); var cb=el("input"); cb.type="checkbox"; cb.dataset.i=i; if(pre && pre.ticks && pre.ticks[i]) cb.checked=true; lb.appendChild(cb); lb.appendChild(document.createTextNode(" "+x)); li.appendChild(lb); ul.appendChild(li); });
   c.appendChild(ul);
   c.appendChild(el("p","small","Answers for the grown-up are on the For Grown-ups page (press and hold the button at the bottom)."));
   var row=el("div","row noprint");
@@ -649,7 +650,7 @@ function afterItems(){
 }
 function medalFor(n){ return n>=5?"Gold":n>=4?"Silver":n>=3?"Bronze":null; }
 function summary(){
-  if(SES) sesClose(false);
+  if(SES) sesClose(false); S.step="summary"; resumeDel();
   var d=roundDone(); var cap = false;
   setMain("summary"); var c=el("div","card center");
   var n = S.mode==="lesson"? S.lessonScore : S.score, total = S.queue.length;
@@ -668,6 +669,66 @@ function summary(){
   row.appendChild(hubLink()); c.appendChild(row); main.appendChild(c);
   if(S.mode==="lesson") try{ window.dispatchEvent(new CustomEvent("eng:lessondone",{detail:{slug:GAME.slug}})); }catch(e){}   // unlocks "Test yourself"
   say(n+" of "+total+" right on the first try.", medal?medal+" level!":null, cap?"Great work! Your brain grows while you rest. Come back tomorrow.":null);   // the score line stays on the device voice
+}
+
+/* ---------- 🏠 Home: back to the menu from any screen; mid-question it asks once, then saves her place ----------
+   Her place (round, question, score so far, the open session) is kept in eng.resume on this device. The open session is
+   also logged at once as "stopped early"; if she carries on, the same session id goes on and its history row is replaced
+   (one row per session, never two). */
+function clone(o){ return o==null? o : JSON.parse(JSON.stringify(o)); }
+function resumeKey(){ return GAME.slug+"|"+player(); }
+function resumeGet(){ if(!GAME) return null; var r=(LS.get(K.resume,{})||{})[resumeKey()];
+  if(!r || r.v!==1 || r.slug!==GAME.slug || Date.now()-r.t>30*864e5) return null;
+  if((r.q||[]).some(function(id){ return !byId(id); })) return null; return r; }
+function resumeDel(){ if(!GAME) return; var all=LS.get(K.resume,{})||{}; if(all[resumeKey()]){ delete all[resumeKey()]; LS.set(K.resume,all); } }
+function stepMark(step){ S.step=step; S.stepScore=S.score; S.stepSes=clone(SES); }
+function midRound(){ return !!GAME && ((S.step==="items"||S.step==="cloze"||S.step==="edit") && !!SES || S.step==="paper"); }
+function testOpen(){ var ck=window.EngCheckup; return !!(ck && ck.open && ck.run && !ck.run.done && ck.run.phase!=="intro"); }
+function pausePlace(){
+  var r={v:1, slug:GAME.slug, player:player(), t:Date.now(), step:S.step, mode:S.mode, phase:S.phase||null, warmDone:!!S.warmDone,
+    lessonScore:S.lessonScore==null?null:S.lessonScore, missed:S.missed.slice(), recent:S.recent.slice(), q:S.queue.map(function(x){ return x.id; })};
+  if(S.step==="items"){ r.idx=S.idx+(S.att&&S.att.finished?1:0); r.score=S.score; r.ses=clone(SES); }
+  else if(S.step==="cloze"||S.step==="edit"){ r.score=S.stepScore; r.ses=S.stepSes; }   // the passage starts again from its first blank
+  else if(S.step==="paper"){ r.typed=Array.prototype.map.call(document.querySelectorAll("#paperSheet textarea.typed"),function(t){ return t.value; });
+    r.ticks=Array.prototype.map.call(document.querySelectorAll("#paperSheet .paper-check input"),function(x){ return x.checked; }); }
+  var all=LS.get(K.resume,{})||{}; all[resumeKey()]=r; LS.set(K.resume,all);
+  if(SES){ var x=SES; SES=null; sesSave(); x.t1=Date.now(); if(x.done) histPut(entryOf(x,true)); }   // shows as "stopped early" until she carries on
+}
+function placeLabel(r){ var m=r.mode==="lesson"?(r.phase==="warmup"?"Warm-up":"Lesson"):r.mode==="review"?"Review":"Practice";
+  if(r.step==="items") return m+", question "+Math.min(r.idx+1,r.q.length)+" of "+r.q.length;
+  return r.step==="cloze"?"Lesson, the cloze passage":r.step==="edit"?"Lesson, the editing passage":"the paper step"; }
+function resumePlace(r){
+  resumeDel(); S.mode=r.mode; S.phase=r.phase; S.warmDone=!!r.warmDone; S.contWarm=false; S.lessonScore=r.lessonScore; S.missed=r.missed||[]; S.recent=r.recent||[];
+  S.queue=(r.q||[]).map(byId); header();
+  if(r.ses){ SES=r.ses; delete SES.t1; sesSave(); }
+  if(r.step==="items"){ S.idx=r.idx; S.score=r.score; showItem(); }
+  else if(r.step==="cloze"){ S.score=r.score; clozeStep(); }
+  else if(r.step==="edit"){ S.score=r.score; editPassageStep(); }
+  else paperStep(r);
+}
+function testSaved(){ try{ var r=JSON.parse(localStorage.getItem("eng.checkup.run."+GAME.slug)||"null"); return !!(r && !r.done && r.phase && r.phase!=="intro" && r.player===player()); }catch(e){ return false; } }
+function resumeOffer(c){
+  var r=resumeGet(), t=testSaved(); if(!r && !t) return;
+  var box=el("div","resume"); box.id="resumeBox";
+  box.appendChild(el("p","resumetitle","📌 Your place is saved"+(r?": "+placeLabel(r)+".":".")));
+  if(r){ var b=btn("▶ Carry on","big",function(){ Voice.unlock([]); resumePlace(r); }); b.id="resumeBtn"; box.appendChild(b); }
+  if(t){ var b2=btn("▶ Carry on my test","big",function(){ Voice.unlock([]); if(window.EngCheckup) EngCheckup.start(); }); b2.id="resumeTest"; box.appendChild(b2); }
+  box.appendChild(el("p","small","Or start again below."));
+  c.appendChild(box);
+}
+function homeUrl(){ var b=$("homeBtn"); return (b && b.getAttribute("data-home")) || "../"; }
+function leaveHome(){ location.href=homeUrl(); }
+function goHome(){
+  if(!GAME){ return; }
+  if(!midRound() && !testOpen()){ leaveHome(); return; }
+  var d=$("homeConfirm"); if(!d){ d=el("div","homeconfirm"); d.id="homeConfirm"; d.setAttribute("role","dialog"); d.setAttribute("aria-modal","true"); d.setAttribute("aria-label","Go home?"); document.body.appendChild(d); }
+  d.innerHTML=""; var c=el("div","card center");
+  c.appendChild(el("div","bigemoji","🏠")); var h=el("h2",null,"Go home? Your place is saved."); h.id="homeQ"; c.appendChild(h);
+  var row=el("div","row");
+  var y=btn("🏠 Yes, go home","big",function(){ y.disabled=true; if(midRound()) pausePlace(); leaveHome(); }); y.id="homeYes";
+  var n=btn("Stay here","quiet",function(){ d.classList.add("hidden"); }); n.id="homeNo";
+  row.appendChild(y); row.appendChild(n); c.appendChild(row); d.appendChild(c); d.classList.remove("hidden");
+  say("Go home? Your place is saved.");
 }
 
 /* ---------- For Grown-ups page (press and hold) ---------- */
@@ -727,22 +788,59 @@ function summaryText(){
 }
 
 /* ---------- hub: who is playing + my practice history ---------- */
+function levelOf(n){ var m=LS.get(K.levels,{})||{}; return m[n]||"Primary 3"; }
+function setLevel(n, lv){ var m=LS.get(K.levels,{})||{}; m[n]=lv; LS.set(K.levels,m); }
+var LEVELS=[["Primary 3",true],["Primary 4",false]];   // only P3 has games so far
 function playerBox(ask){
   var box=$("playerBox"); if(!box) return; box.innerHTML="";
   var known=LS.get(K.player,null)!==null;
+  ASKING=!(known && !ask); hubShow();
   if(known && !ask){ var row=el("div","card hello"); var h=el("h2",null,"Hi, "+player()+"!"); h.id="hello"; row.appendChild(h);
-    var ch=btn("Change player","linkbtn",function(){ playerBox(true); }); ch.id="changePlayer"; row.appendChild(ch); box.appendChild(row); return; }
+    var lv=el("p","levelline","Level: "+levelOf(player())); lv.id="levelLine"; row.appendChild(lv);
+    var lr=el("div","row left"); lr.id="levelPick"; lr.setAttribute("role","group"); lr.setAttribute("aria-label","My level");
+    LEVELS.forEach(function(L){ var on=levelOf(player())===L[0]; var b=btn(L[0]+(L[1]?"":" (coming soon)"),"chip"+(on?" on":"")+(L[1]?"":" soon"),function(){ setLevel(player(),L[0]); playerBox(false); });
+      b.disabled=!L[1]; b.setAttribute("aria-pressed",on?"true":"false"); lr.appendChild(b); }); row.appendChild(lr);
+    var go=btn("Pick a topic ▶","big",function(){ Voice.unlock([]); location.hash="topics"; }); go.id="toTopics"; row.appendChild(go);
+    var r2=el("div","row left");
+    var bk=btn("◀ Back","ctl back",function(){ playerBox(true); }); bk.id="back1"; r2.appendChild(bk);
+    var ch=btn("Change player","linkbtn",function(){ playerBox(true); }); ch.id="changePlayer"; r2.appendChild(ch); row.appendChild(r2); box.appendChild(row); return; }
   var c=el("div","card center ask-name"); c.id="namePrompt";
   c.appendChild(el("h2",null,"Who is playing?"));
   var inp=el("input","namebox"); inp.type="text"; inp.id="nameInput"; inp.maxLength=20; inp.setAttribute("autocomplete","off"); inp.setAttribute("autocapitalize","words"); inp.setAttribute("spellcheck","false"); inp.setAttribute("aria-label","Your name");
   inp.placeholder="Type your name"; c.appendChild(inp);
-  var go=btn("Let's go! ▶","big",function(){ setPlayer(inp.value); playerBox(false); renderHistory(); }); go.id="nameGo";
+  var go=btn("Let's go! ▶","big",function(){ var n=setPlayer(inp.value); Voice.unlock([]); hubGo(""); playerBox(false); renderHistory(); say("Hi, "+n+"!"); }); go.id="nameGo";   // a line with her name: device voice only (never a clip)
   inp.addEventListener("keydown",function(e){ if(e.key==="Enter") go.click(); });
   c.appendChild(go);
   var ps=LS.get(K.players,[]); if(ps.length){ var r=el("div","row"); r.appendChild(el("span","small","Or tap your name: "));
-    ps.forEach(function(n,i){ var b=btn(n,"chip",function(){ setPlayer(n); playerBox(false); renderHistory(); }); b.id="pick"+i; r.appendChild(b); }); c.appendChild(r); }
+    ps.forEach(function(n,i){ var b=btn(n,"chip",function(){ setPlayer(n); Voice.unlock([]); hubGo(""); playerBox(false); renderHistory(); say("Hi, "+n+"!"); }); b.id="pick"+i; r.appendChild(b); }); c.appendChild(r); }
   c.appendChild(el("p","small","Your name stays on this device only. It is not sent anywhere."));
+  if(known){ var cx=btn("◀ Back","ctl back",function(){ playerBox(false); }); cx.id="back0"; c.appendChild(cx); }
   box.appendChild(c);
+}
+/* hub levels: 1 = me (name, level, points, history) · 2 = topics (#topics) · 3 = games in a topic (#topic=<id>) */
+var ASKING=false;
+function hubLevel(){ var h=(location.hash||"").replace(/^#/,""); if(h==="topics") return {n:2};
+  var m=/^topic=([a-z-]+)$/.exec(h); if(m){ var s=$("level3-"+m[1]); if(s) return {n:3, id:m[1]}; return {n:2}; } return {n:1}; }
+function hubGo(h){ if(h) location.hash=h; else if(location.hash){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){ location.hash=""; } hubShow(); } else hubShow(); }
+function hubShow(){
+  var l1=$("level1"); if(!l1) return; var L=hubLevel();
+  var pb=$("playerBox"); if(pb) pb.hidden = !ASKING && L.n!==1;
+  l1.hidden = ASKING || L.n!==1; $("level2").hidden = ASKING || L.n!==2;
+  Array.prototype.forEach.call(document.querySelectorAll(".level3"),function(s){ s.hidden = ASKING || L.n!==3 || s.dataset.topic!==L.id; });
+  document.body.dataset.level = ASKING? "0" : String(L.n);
+  // games with a saved place get a marker
+  Array.prototype.forEach.call(document.querySelectorAll(".gamecard[data-slug]"),function(a){ var slug=a.dataset.slug, k=slug+"|"+player();
+    var r=(LS.get(K.resume,{})||{})[k], t=LS.get("eng.checkup.run."+slug,null); var saved=!!r || !!(t && !t.done && t.phase && t.phase!=="intro" && t.player===player());
+    var mk=a.querySelector(".savedmark"); if(mk) mk.hidden=!saved; });
+  window.scrollTo(0,0);
+}
+function hubBoot(){
+  if(!$("level1")) return;
+  $("back2").addEventListener("click", function(){ hubGo(""); });
+  Array.prototype.forEach.call(document.querySelectorAll(".level3 .back"),function(b){ b.addEventListener("click", function(){ location.hash="topics"; }); });
+  Array.prototype.forEach.call(document.querySelectorAll(".topiccard[data-topic]"),function(b){ if(b.disabled) return; b.addEventListener("click", function(){ Voice.unlock([]); location.hash="topic="+b.dataset.topic; }); });
+  window.addEventListener("hashchange", function(){ hubShow(); var L=hubLevel(); if(L.n===2) say("Pick a topic."); else if(L.n===3) say("Pick a game."); });
+  window.addEventListener("pageshow", function(){ hubShow(); });
 }
 function dayOf(iso){ return iso.slice(0,10); }
 function niceDay(d){ var dt=new Date(d+"T12:00:00+08:00"); var M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], W=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -790,7 +888,8 @@ function boot(){
   addXP(0);
   sesRecover();
   window.addEventListener("pagehide", function(){ sesClose(true); });
-  if(!GAME){ playerBox(false); renderHistory(); return; }
+  if(!GAME){ hubBoot(); playerBox(false); renderHistory(); return; }
+  var hb=$("homeBtn"); if(hb) hb.addEventListener("click", goHome);
   $("modeLesson").addEventListener("click", function(){ if(capReached()){ startReview(); return; } ruleCard(); });
   $("modePractice").addEventListener("click", function(){ startPractice(); });
   startScreen();
@@ -798,6 +897,6 @@ function boot(){
 window.ENG = { tokens:tokens, joinTokens:joinTokens, pickRound:pickRound, validItem:validItem, eligible:eligible, TAGS:TAGS, LS:LS, K:K, ROUND:ROUND,
   playItem:function(id){ sesClose(true); var it=byId(id); S.mode="practice"; S.queue=[it]; S.idx=0; S.score=0; showItem(); },
   playCloze:function(){ S.mode="lesson"; clozeStep(); }, paperStep:paperStep, parentPage:parentPage, startLesson:startLesson, summaryText:summaryText,
-  state:S, player:player, histPut:histPut, sgt:sgt, ruleCard:ruleCard, workedExample:workedExample, renderHistory:renderHistory, history:function(){ return LS.get(K.hist,[]); }, session:function(){ return SES; } };
+  state:S, player:player, goHome:goHome, resume:function(){ return LS.get(K.resume,{}); }, histPut:histPut, sgt:sgt, ruleCard:ruleCard, workedExample:workedExample, renderHistory:renderHistory, history:function(){ return LS.get(K.hist,[]); }, session:function(){ return SES; } };
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

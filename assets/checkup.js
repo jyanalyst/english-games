@@ -136,7 +136,7 @@ function solution(){ var Q=item();
     Q.sol.map(function(s,i){ return '<tr><td class="ckln">'+(i+1)+'</td><td class="ckst">'+esc(s[0])+'</td><td class="ckwhy">'+esc(s[1])+'</td></tr>'; }).join("")+'</table></div>'; }
 function draw(){
   var o=ov(), h='<div class="ckhead"><span class="cktitle">📝 Test yourself · '+esc(TITLE)+'</span><span class="ckpts" id="ckPts">⭐ '+run.stars+'</span>'+
-    '<button type="button" class="ckq" id="ckRead">🔊 Read it to me</button><button type="button" class="ckq" id="ckClose">✕ Close</button></div>';
+    '<button type="button" class="ckq" id="ckRead">🔊 Read it to me</button><button type="button" class="ckq" id="ckClose">✕ Close</button><button type="button" class="ckq" id="ckHome">🏠 Home</button></div>';
   if(run.phase!=="intro") h+=dots();
   h+='<div class="ckbody'+(set_(run).passage&&run.phase!=="intro"&&run.phase!=="end"?' withp':'')+'">';
   if(run.phase==="intro"){
@@ -172,6 +172,7 @@ function draw(){
 function bind(){
   var o=ov();
   if($("ckClose")) $("ckClose").onclick=close;
+  if($("ckHome")) $("ckHome").onclick=function(){ if(run && !run.done) save(); if(window.ENG && ENG.goHome) ENG.goHome(); };   // asks once mid-test; the test is kept and resumes
   if($("ckRead")) $("ckRead").onclick=readAloud;
   if($("ckStart")) $("ckStart").onclick=function(){ run.phase="q"; save(); draw(); readQ(); };
   if($("ckLater")) $("ckLater").onclick=close;

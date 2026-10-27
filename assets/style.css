@@ -140,3 +140,25 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:10p
 .ctl.danger{background:#fde8e8;color:#8a1f1f}
 .playing{margin-top:-4px}
 .filterrow .chip.on{background:#ffd88a;border-color:#e0a800;font-weight:700}
+/* 27 Oct 2026: Home button, Home confirm, 3-level hub menu */
+.ctl.home{font-weight:700}
+.homeconfirm{position:fixed;inset:0;z-index:90;background:rgba(20,30,40,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.homeconfirm .card{max-width:520px;width:100%}
+.resume{background:#fff6d6;border-radius:14px;padding:10px;margin:10px 0}
+.resumetitle{font-weight:700;margin:4px 0}
+.level[hidden]{display:none}
+.levelbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:4px 0 8px}
+.levelbar h2{margin:0;flex:1 1 auto}
+.ctl.back{background:#e7ecef;color:#23303b}
+.levelline{font-size:18px;margin:2px 0 6px}
+.row.left{justify-content:flex-start}
+.chip.soon,.chip:disabled{opacity:.5}
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.topiccard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;background:#fff;border:3px solid #b9d3e4;border-radius:18px;padding:16px;min-height:150px;color:#23303b;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.topiccard .bigemoji{font-size:48px}
+.topiccard .ttitle{font-size:24px;font-weight:700}
+.topiccard .tabout{font-size:16px;color:#5b6770}
+.topiccard.soon{background:#eceff1;border-color:#d0d6da;color:#8a96a0;filter:grayscale(1);cursor:not-allowed}
+.soonbadge{background:#d0d6da;color:#5b6770}
+.savedmark{display:block;margin-top:6px;font-weight:700;color:#b45f00}
+.savedmark[hidden]{display:none}
